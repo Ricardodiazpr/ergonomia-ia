@@ -159,7 +159,7 @@ header p{font-size:11px;opacity:.8;margin-top:2px}
     <div>
       <div class="card">
         <div class="card-head" id="t-result">Resultado IA</div>
-        <div id="res-idle" class="empty" id="t-empty">
+        <div id="res-idle" class="empty">
           <span id="t-empty-text">Sube una foto o video y presiona <strong>Analizar con IA</strong></span>
         </div>
         <div id="res-loading" style="display:none;padding:16px">
@@ -191,22 +191,22 @@ var PLACEHOLDERS={
   en:{wname:'Full name',wrole:'Ex: Operator',weval:'Your name'}
 };
 
-var Svar SKELETON_INSTRUCTION_BASE='\n\nINSTRUCCIONES CRITICAS PARA EL ESQUELETO - LEE ATENTAMENTE:\n\n1. PRIMERO IDENTIFICA LA POSTURA: ¿La persona esta SENTADA, DE PIE, AGACHADA, ARRODILLADA o INCLINADA? Esto es lo MAS IMPORTANTE.\n\n2. SOLO INCLUYE ARTICULACIONES VISIBLES en la imagen. Si una parte del cuerpo no se ve (cubierta por escritorio, ropa, otro objeto, fuera del marco), OMITELA completamente del JSON. NO la inventes.\n\n3. SI ESTA SENTADO en silla:\n   - Las CADERAS estan a la altura del asiento (NO en el centro del torso)\n   - Las RODILLAS estan FLEXIONADAS hacia adelante (a 90 grados aprox)\n   - Si los pies/tobillos NO se ven debajo del escritorio, OMITE tobillo_izq y tobillo_der completamente\n   - Si las rodillas no se ven claramente, OMITELAS\n   - El tronco va desde el cuello hacia las caderas en posicion vertical\n\n4. SI ESTA DE PERFIL (vista lateral):\n   - Solo se ve UN lado del cuerpo (un hombro, un codo, una cadera, una rodilla)\n   - OMITE las articulaciones del lado oculto\n   - Por ejemplo: si solo se ve el lado izquierdo, omite hombro_der, codo_der, etc.\n\n5. COORDENADAS REALES: Las x,y son porcentajes 0-100 de la imagen. Mira PIXEL POR PIXEL donde esta cada articulacion en la foto. NO uses valores genericos. Por ejemplo si la cabeza esta arriba a la izquierda en la imagen, x sera bajo (20-30) y y sera bajo (10-20).\n\n6. COLOR de cada articulacion: "verde" (postura correcta), "amarillo" (a mejorar), "rojo" (critica).\n\n7. Si la imagen NO muestra claramente a una persona o no puedes ver las articulaciones, devuelve "esqueleto":{} vacio.\n\nEjemplo de persona SENTADA de perfil derecho mirando hacia la izquierda (solo lado izquierdo visible):\n"esqueleto":{"cabeza":{"x":45,"y":25,"color":"amarillo"},"cuello":{"x":47,"y":32,"color":"amarillo"},"hombro_izq":{"x":48,"y":36,"color":"verde"},"codo_izq":{"x":52,"y":48,"color":"verde"},"muneca_izq":{"x":58,"y":54,"color":"verde"},"cadera_izq":{"x":48,"y":62,"color":"verde"},"rodilla_izq":{"x":58,"y":72,"color":"amarillo"}}\n\nArticulaciones disponibles: cabeza, cuello, hombro_izq, hombro_der, codo_izq, codo_der, muneca_izq, muneca_der, cadera_izq, cadera_der, rodilla_izq, rodilla_der, tobillo_izq, tobillo_der.';
+var SKELETON_INSTRUCTION_BASE='\n\nINSTRUCCIONES CRITICAS PARA EL ESQUELETO - LEE ATENTAMENTE:\n\n1. PRIMERO IDENTIFICA LA POSTURA: La persona esta SENTADA, DE PIE, AGACHADA, ARRODILLADA o INCLINADA? Esto es lo MAS IMPORTANTE.\n\n2. SOLO INCLUYE ARTICULACIONES VISIBLES en la imagen. Si una parte del cuerpo no se ve (cubierta por escritorio, ropa, otro objeto, fuera del marco), OMITELA completamente del JSON. NO la inventes.\n\n3. SI ESTA SENTADO en silla: las CADERAS estan a la altura del asiento, las RODILLAS estan FLEXIONADAS hacia adelante a 90 grados. Si los pies/tobillos NO se ven debajo del escritorio, OMITE tobillo_izq y tobillo_der completamente. Si las rodillas no se ven claramente, OMITELAS.\n\n4. SI ESTA DE PERFIL (vista lateral): solo se ve UN lado del cuerpo. OMITE las articulaciones del lado oculto. Por ejemplo si solo se ve el lado izquierdo, omite hombro_der, codo_der, etc.\n\n5. COORDENADAS REALES: x,y son porcentajes 0-100 de la imagen. Mira pixel por pixel donde esta cada articulacion. NO uses valores genericos.\n\n6. COLOR de cada articulacion: verde (correcta), amarillo (a mejorar), rojo (critica).\n\n7. Si la imagen NO muestra claramente a una persona, devuelve esqueleto vacio.\n\nArticulaciones disponibles: cabeza, cuello, hombro_izq, hombro_der, codo_izq, codo_der, muneca_izq, muneca_der, cadera_izq, cadera_der, rodilla_izq, rodilla_der, tobillo_izq, tobillo_der.';
 
 var PROMPTS_ES={
-  oficina:'Eres ergonomista certificado. Analiza imagen de trabajador en OFICINA. Usa medidas en PULGADAS (inches). Evalua: cuello (flexion <20 grados), hombros, codos (90 grados), munecas neutras, espalda con apoyo lumbar, cadera/rodillas (90 grados), pies apoyados. Distancia monitor 20-28 pulgadas. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"hombros":90,"codos":85,"tronco":80,"caderas":88,"munecas":70}}'+SKELETON_INSTRUCTION_BASE,
-  manufactura:'Eres ergonomista certificado. Analiza imagen de trabajador en MANUFACTURA. Usa medidas en PULGADAS (inches) y LIBRAS (lbs). Evalua: cuello flexion <20 grados, tronco, brazos, munecas, postura de pie, zona de confort, manejo de carga (max 55 lbs hombres, 33 lbs mujeres). Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"tronco":80,"brazos":85,"munecas":70,"postura_pie":88,"zona_confort":75}}'+SKELETON_INSTRUCTION_BASE,
-  almacen:'Eres ergonomista certificado. Analiza imagen de trabajador en ALMACEN. Usa medidas en PULGADAS (inches) y LIBRAS (lbs). Evalua: tecnica de levantamiento, posicion de carga, torsion de tronco, cuello, rodillas, uso de equipos. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"levantamiento":75,"posicion_carga":80,"tronco":85,"cuello":70,"rodillas":88,"postura_general":75}}'+SKELETON_INSTRUCTION_BASE,
-  mecanica:'Eres ergonomista certificado. Analiza imagen de trabajador en MECANICA. Usa medidas en PULGADAS (inches) y LIBRAS (lbs). Evalua: postura de acceso, agarre de herramientas, muneca, tronco, cuclillas, brazos sobre cabeza, EPP. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"acceso":75,"herramientas":80,"tronco":85,"brazos":70,"compresion":88,"postura_general":75}}'+SKELETON_INSTRUCTION_BASE
+  oficina:'Eres ergonomista certificado. Analiza imagen de trabajador en OFICINA. Usa medidas en PULGADAS. Evalua: cuello flexion <20 grados, hombros, codos 90 grados, munecas neutras, espalda con apoyo lumbar, cadera/rodillas 90 grados, pies apoyados. Distancia monitor 20-28 pulgadas. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"hombros":90,"codos":85,"tronco":80,"caderas":88,"munecas":70}}'+SKELETON_INSTRUCTION_BASE,
+  manufactura:'Eres ergonomista certificado. Analiza imagen de trabajador en MANUFACTURA. Usa medidas en PULGADAS y LIBRAS. Evalua: cuello flexion <20 grados, tronco, brazos, munecas, postura de pie, zona de confort, manejo de carga max 55 lbs hombres 33 lbs mujeres. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"tronco":80,"brazos":85,"munecas":70,"postura_pie":88,"zona_confort":75}}'+SKELETON_INSTRUCTION_BASE,
+  almacen:'Eres ergonomista certificado. Analiza imagen de trabajador en ALMACEN. Usa medidas en PULGADAS y LIBRAS. Evalua: tecnica de levantamiento, posicion de carga, torsion de tronco, cuello, rodillas, uso de equipos. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"levantamiento":75,"posicion_carga":80,"tronco":85,"cuello":70,"rodillas":88,"postura_general":75}}'+SKELETON_INSTRUCTION_BASE,
+  mecanica:'Eres ergonomista certificado. Analiza imagen de trabajador en MECANICA. Usa medidas en PULGADAS y LIBRAS. Evalua: postura de acceso, agarre de herramientas, muneca, tronco, cuclillas, brazos sobre cabeza, EPP. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"acceso":75,"herramientas":80,"tronco":85,"brazos":70,"compresion":88,"postura_general":75}}'+SKELETON_INSTRUCTION_BASE
 };
 
-var var SKELETON_INSTRUCTION_EN='\n\nCRITICAL SKELETON INSTRUCTIONS - READ CAREFULLY:\n\n1. FIRST IDENTIFY THE POSTURE: Is the person SITTING, STANDING, BENT OVER, KNEELING, or LEANING? This is the MOST IMPORTANT.\n\n2. ONLY INCLUDE VISIBLE JOINTS in the image. If a body part is not visible (covered by desk, clothing, other object, out of frame), OMIT it completely from the JSON. DO NOT invent it.\n\n3. IF SITTING in chair:\n   - HIPS are at seat height (NOT in center of torso)\n   - KNEES are FLEXED forward (around 90 degrees)\n   - If feet/ankles NOT visible under desk, OMIT tobillo_izq and tobillo_der completely\n   - If knees not clearly visible, OMIT them\n   - Trunk goes from neck to hips in vertical position\n\n4. IF IN PROFILE (side view):\n   - Only ONE side of body visible (one shoulder, one elbow, one hip, one knee)\n   - OMIT hidden side joints\n   - Example: if only left side visible, omit hombro_der, codo_der, etc.\n\n5. REAL COORDINATES: x,y are percentages 0-100 of image. Look PIXEL BY PIXEL where each joint is in the photo. DO NOT use generic values.\n\n6. COLOR of each joint: "verde" (correct posture), "amarillo" (to improve), "rojo" (critical).\n\n7. If image does NOT clearly show a person or you cannot see joints, return "esqueleto":{} empty.\n\nAvailable joints: cabeza, cuello, hombro_izq, hombro_der, codo_izq, codo_der, muneca_izq, muneca_der, cadera_izq, cadera_der, rodilla_izq, rodilla_der, tobillo_izq, tobillo_der.';
+var SKELETON_INSTRUCTION_EN='\n\nCRITICAL SKELETON INSTRUCTIONS - READ CAREFULLY:\n\n1. FIRST IDENTIFY POSTURE: Is person SITTING, STANDING, BENT OVER, KNEELING, or LEANING? Most important.\n\n2. ONLY INCLUDE VISIBLE JOINTS. If body part not visible (covered by desk, clothing, other object, out of frame), OMIT it completely. DO NOT invent.\n\n3. IF SITTING in chair: HIPS at seat height, KNEES flexed forward at 90 degrees. If feet/ankles NOT visible under desk, OMIT tobillo_izq and tobillo_der. If knees not visible, OMIT them.\n\n4. IF IN PROFILE (side view): only ONE side visible. OMIT hidden side joints. Example: if only left side visible, omit hombro_der, codo_der, etc.\n\n5. REAL COORDINATES: x,y are percentages 0-100 of image. Look pixel by pixel. DO NOT use generic values.\n\n6. COLOR of each joint: verde (correct), amarillo (improve), rojo (critical).\n\n7. If no clear person visible, return empty skeleton.\n\nAvailable joints: cabeza, cuello, hombro_izq, hombro_der, codo_izq, codo_der, muneca_izq, muneca_der, cadera_izq, cadera_der, rodilla_izq, rodilla_der, tobillo_izq, tobillo_der.';
 
 var PROMPTS_EN={
-  oficina:'You are a certified ergonomist. Analyze image of worker in OFFICE. Use INCHES for measurements. Evaluate: neck (flexion <20 degrees), shoulders, elbows (90 degrees), neutral wrists, back with lumbar support, hip/knees (90 degrees), feet supported. Monitor distance 20-28 inches. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"neck":75,"shoulders":90,"elbows":85,"trunk":80,"hips":88,"wrists":70}}'+SKELETON_INSTRUCTION_EN,
-  manufactura:'You are a certified ergonomist. Analyze image of worker in MANUFACTURING. Use INCHES and POUNDS (lbs). Evaluate: neck flexion <20 degrees, trunk, arms, wrists, standing posture, comfort zone, load handling (max 55 lbs men, 33 lbs women). Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"neck":75,"trunk":80,"arms":85,"wrists":70,"standing":88,"comfort_zone":75}}'+SKELETON_INSTRUCTION_EN,
-  almacen:'You are a certified ergonomist. Analyze image of worker in WAREHOUSE. Use INCHES and POUNDS (lbs). Evaluate: lifting technique, load position, trunk twisting, neck, knees, equipment use. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"lifting":75,"load_position":80,"trunk":85,"neck":70,"knees":88,"general_posture":75}}'+SKELETON_INSTRUCTION_EN,
-  mecanica:'You are a certified ergonomist. Analyze image of worker in MECHANIC area. Use INCHES and POUNDS (lbs). Evaluate: access posture, tool grip, wrist, trunk, squatting, arms overhead, PPE. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"access":75,"tools":80,"trunk":85,"arms":70,"compression":88,"general_posture":75}}'+SKELETON_INSTRUCTION_EN
+  oficina:'You are certified ergonomist. Analyze worker image in OFFICE. Use INCHES. Evaluate: neck flexion <20 degrees, shoulders, elbows 90 degrees, neutral wrists, back with lumbar support, hip/knees 90 degrees, feet supported. Monitor 20-28 inches. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"neck":75,"shoulders":90,"elbows":85,"trunk":80,"hips":88,"wrists":70}}'+SKELETON_INSTRUCTION_EN,
+  manufactura:'You are certified ergonomist. Analyze worker image in MANUFACTURING. Use INCHES and POUNDS. Evaluate: neck flexion <20 degrees, trunk, arms, wrists, standing posture, comfort zone, load handling max 55 lbs men 33 lbs women. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"neck":75,"trunk":80,"arms":85,"wrists":70,"standing":88,"comfort_zone":75}}'+SKELETON_INSTRUCTION_EN,
+  almacen:'You are certified ergonomist. Analyze worker image in WAREHOUSE. Use INCHES and POUNDS. Evaluate: lifting technique, load position, trunk twisting, neck, knees, equipment use. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"lifting":75,"load_position":80,"trunk":85,"neck":70,"knees":88,"general_posture":75}}'+SKELETON_INSTRUCTION_EN,
+  mecanica:'You are certified ergonomist. Analyze worker image in MECHANIC area. Use INCHES and POUNDS. Evaluate: access posture, tool grip, wrist, trunk, squatting, arms overhead, PPE. Respond ONLY in English with valid JSON without markdown:\n{"puntuacion":85,"nivel":"Low Risk","resumen":"text","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"access":75,"tools":80,"trunk":85,"arms":70,"compression":88,"general_posture":75}}'+SKELETON_INSTRUCTION_EN
 };
 
 var COLOR_MAP={verde:'#3B6D11',amarillo:'#EF9F27',rojo:'#E24B4A'};
@@ -264,7 +264,7 @@ function showPreview(){
   document.getElementById('legend').style.display='none';
   if(isVideo){
     var v=document.createElement('video');v.src=dataUrl;v.controls=true;v.style.cssText='width:100%;max-height:380px;object-fit:contain';
-    box.insertBefore(v,box.firstChild);tag.textContent=lang==='es'?'video':'video';
+    box.insertBefore(v,box.firstChild);tag.textContent='video';
     document.getElementById('btn-frame').style.display='inline-flex';
   } else {
     var img=document.createElement('img');img.src=dataUrl;img.style.cssText='width:100%;max-height:380px;object-fit:contain';
@@ -294,7 +294,7 @@ function takePic(){var v=document.getElementById('cam-vid'),c=document.getElemen
 function stopCam(){if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;}document.getElementById('cam-section').style.display='none';document.getElementById('idle-section').style.display='block';}
 
 function drawSkeleton(esq){
-  if(!esq)return;
+  if(!esq||!Object.keys(esq).length)return;
   var svg=document.getElementById('skeleton-svg');
   var img=document.querySelector('#prev-box img');
   if(!img)return;
@@ -388,7 +388,7 @@ function addHist(r){var t=T[lang];hist.unshift({thumb:dataUrl,name:document.getE
 
 function getSkeletonImage(callback){
   var img=document.querySelector('#prev-box img');
-  if(!img||!lastResult||!lastResult.esqueleto){callback(dataUrl);return;}
+  if(!img||!lastResult||!lastResult.esqueleto||!Object.keys(lastResult.esqueleto).length){callback(dataUrl);return;}
   var c=document.createElement('canvas');
   var iw=img.naturalWidth,ih=img.naturalHeight;
   c.width=iw;c.height=ih;
@@ -473,28 +473,28 @@ function exportPDF(){
       doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(163,45,45);
       doc.text(t.critical,14,y);y+=5;
       doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
-      r.hallazgos_criticos.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});y+=2;
+      r.hallazgos_criticos.forEach(function(h){var lines=doc.splitTextToSize('- '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});y+=2;
     }
     if(y>240){doc.addPage();y=20;}
     if(r.hallazgos_moderados&&r.hallazgos_moderados.length){
       doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(133,79,11);
       doc.text(t.moderate,14,y);y+=5;
       doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
-      r.hallazgos_moderados.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});y+=2;
+      r.hallazgos_moderados.forEach(function(h){var lines=doc.splitTextToSize('- '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});y+=2;
     }
     if(y>240){doc.addPage();y=20;}
     if(r.puntos_positivos&&r.puntos_positivos.length){
       doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(59,109,17);
       doc.text(t.positive,14,y);y+=5;
       doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
-      r.puntos_positivos.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});y+=2;
+      r.puntos_positivos.forEach(function(h){var lines=doc.splitTextToSize('- '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});y+=2;
     }
     if(y>240){doc.addPage();y=20;}
     if(r.recomendaciones&&r.recomendaciones.length){
       doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(24,95,165);
       doc.text(t.recommendations,14,y);y+=5;
       doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
-      r.recomendaciones.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});
+      r.recomendaciones.forEach(function(h){var lines=doc.splitTextToSize('- '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});
     }
     doc.setFontSize(7);doc.setTextColor(150,150,150);
     doc.text(t.pdfFooter,pw/2,ph-10,{align:'center'});
