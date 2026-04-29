@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Evaluacion Ergonomica IA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;background:#f5f5f2;color:#1a1a18;font-size:15px}
 header{background:#185FA5;color:#fff;padding:14px 20px}
 header h1{font-size:17px;font-weight:600}
 header p{font-size:11px;opacity:.8;margin-top:2px}
-.wrap{max-width:900px;margin:0 auto;padding:16px}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
 .card{background:#fff;border-radius:12px;border:1px solid #e0deda;margin-bottom:14px;overflow:hidden}
 .card-head{padding:11px 16px;border-bottom:1px solid #e0deda;font-size:13px;font-weight:600;color:#5f5e5a}
 .card-body{padding:14px 16px}
@@ -36,9 +37,15 @@ header p{font-size:11px;opacity:.8;margin-top:2px}
 .btn-blue{background:#185FA5;color:#fff;border-color:#185FA5}
 .btn-blue:hover{background:#0C447C}
 .btn-blue:disabled{opacity:.5;cursor:not-allowed}
+.btn-green{background:#3B6D11;color:#fff;border-color:#3B6D11}
+.btn-green:hover{background:#2a5008}
 .preview-wrap{position:relative;background:#000;border-radius:10px;overflow:hidden;min-height:160px;display:flex;align-items:center;justify-content:center}
-.preview-wrap img,.preview-wrap video{width:100%;max-height:280px;object-fit:contain}
-.tag{position:absolute;top:7px;left:7px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:2px 8px;border-radius:999px}
+.preview-wrap img,.preview-wrap video{width:100%;max-height:380px;object-fit:contain;display:block}
+.skeleton-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.tag{position:absolute;top:7px;left:7px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:2px 8px;border-radius:999px;z-index:10}
+.legend{display:flex;gap:12px;padding:8px 14px;background:#fafaf8;border-top:1px solid #eee;font-size:11px;color:#666;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:10px;height:10px;border-radius:50%}
 .empty{text-align:center;padding:28px 16px;color:#999;font-size:13px;line-height:1.8}
 .skel{background:#f0efe9;border-radius:6px;height:13px;margin-bottom:8px;animation:pulse 1.2s ease infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
@@ -68,7 +75,7 @@ header p{font-size:11px;opacity:.8;margin-top:2px}
 <body>
 <header>
   <h1>Evaluacion Ergonomica con IA</h1>
-  <p>Analisis postural por imagen o video</p>
+  <p>Analisis postural por imagen o video con esqueleto visual</p>
 </header>
 <div class="wrap">
   <div class="card">
@@ -119,7 +126,13 @@ header p{font-size:11px;opacity:.8;margin-top:2px}
           <div class="card-body" style="padding-bottom:0">
             <div class="preview-wrap" id="prev-box">
               <span class="tag" id="media-tag">foto</span>
+              <svg class="skeleton-overlay" id="skeleton-svg" style="display:none"></svg>
             </div>
+          </div>
+          <div class="legend" id="legend" style="display:none">
+            <div class="legend-item"><div class="legend-dot" style="background:#3B6D11"></div>Correcto</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#EF9F27"></div>A mejorar</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#E24B4A"></div>Critico</div>
           </div>
           <div id="snaps-wrap" style="display:none">
             <div class="snap-strip" id="snap-list"></div>
@@ -138,7 +151,8 @@ header p{font-size:11px;opacity:.8;margin-top:2px}
       <div class="card">
         <div class="card-head">Resultado IA</div>
         <div id="res-idle" class="empty">
-          Sube una foto o video<br>y presiona <strong>Analizar con IA</strong>
+          Sube una foto o video<br>y presiona <strong>Analizar con IA</strong><br><br>
+          Se mostrara el esqueleto del trabajador<br>con colores segun la postura
         </div>
         <div id="res-loading" style="display:none;padding:16px">
           <div class="skel" style="width:100%;height:10px"></div>
@@ -157,33 +171,104 @@ header p{font-size:11px;opacity:.8;margin-top:2px}
   </div>
 </div>
 <script>
-var area='oficina',dataUrl=null,isVideo=false,snaps=[],camStream=null,hist=[];
+var area='oficina',dataUrl=null,isVideo=false,snaps=[],camStream=null,hist=[],lastResult=null;
+
+var SKELETON_INSTRUCTION='\n\nADEMAS, devuelve coordenadas para dibujar el esqueleto. Las coordenadas deben ser PORCENTAJES de la imagen (0-100). Identifica con precision la posicion de cada articulacion en la imagen. Para cada articulacion da color: "verde" (correcta), "amarillo" (a mejorar), "rojo" (critica). Agrega al JSON: "esqueleto":{"cabeza":{"x":50,"y":15,"color":"verde"},"cuello":{"x":50,"y":22,"color":"verde"},"hombro_izq":{"x":42,"y":28,"color":"verde"},"hombro_der":{"x":58,"y":28,"color":"verde"},"codo_izq":{"x":38,"y":42,"color":"amarillo"},"codo_der":{"x":62,"y":42,"color":"amarillo"},"muneca_izq":{"x":35,"y":55,"color":"verde"},"muneca_der":{"x":65,"y":55,"color":"verde"},"cadera_izq":{"x":45,"y":58,"color":"verde"},"cadera_der":{"x":55,"y":58,"color":"verde"},"rodilla_izq":{"x":44,"y":75,"color":"verde"},"rodilla_der":{"x":56,"y":75,"color":"verde"},"tobillo_izq":{"x":43,"y":92,"color":"verde"},"tobillo_der":{"x":57,"y":92,"color":"verde"}}';
+
 var PROMPTS={
-  oficina:'Eres ergonomista certificado. Analiza imagen de trabajador en OFICINA. Evalua: cuello, hombros, codos, munecas, espalda, cadera/rodillas, pies. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"hombros":90,"codos":85,"tronco":80,"caderas":88,"munecas":70}}',
-  manufactura:'Eres ergonomista certificado. Analiza imagen de trabajador en MANUFACTURA. Evalua: cuello, tronco, brazos, munecas, postura de pie, zona de confort, manejo de carga. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"tronco":80,"brazos":85,"munecas":70,"postura_pie":88,"zona_confort":75}}',
-  almacen:'Eres ergonomista certificado. Analiza imagen de trabajador en ALMACEN. Evalua: tecnica de levantamiento, posicion de carga, torsion de tronco, cuello, rodillas, uso de equipos. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"levantamiento":75,"posicion_carga":80,"tronco":85,"cuello":70,"rodillas":88,"postura_general":75}}',
-  mecanica:'Eres ergonomista certificado. Analiza imagen de trabajador en MECANICA. Evalua: postura de acceso, agarre de herramientas, muneca, tronco, cuclillas, brazos sobre cabeza, EPP. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"acceso":75,"herramientas":80,"tronco":85,"brazos":70,"compresion":88,"postura_general":75}}'
+  oficina:'Eres ergonomista certificado. Analiza imagen de trabajador en OFICINA. Usa medidas en PULGADAS (inches). Evalua: cuello (flexion <20 grados), hombros, codos (90 grados), munecas neutras, espalda con apoyo lumbar, cadera/rodillas (90 grados), pies apoyados. Distancia monitor 20-28 pulgadas. Altura monitor a nivel de ojos. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"hombros":90,"codos":85,"tronco":80,"caderas":88,"munecas":70}}'+SKELETON_INSTRUCTION,
+  manufactura:'Eres ergonomista certificado. Analiza imagen de trabajador en MANUFACTURA. Usa medidas en PULGADAS (inches) y LIBRAS (lbs). Evalua: cuello flexion <20 grados, tronco, brazos, munecas, postura de pie, zona de confort, manejo de carga (max 55 lbs hombres, 33 lbs mujeres). Altura de trabajo a nivel de codo. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"cuello":75,"tronco":80,"brazos":85,"munecas":70,"postura_pie":88,"zona_confort":75}}'+SKELETON_INSTRUCTION,
+  almacen:'Eres ergonomista certificado. Analiza imagen de trabajador en ALMACEN. Usa medidas en PULGADAS (inches) y LIBRAS (lbs). Evalua: tecnica de levantamiento, posicion de carga (entre nudillos y hombros), torsion de tronco, cuello, rodillas, uso de equipos (carretilla si carga >33 lbs). Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"levantamiento":75,"posicion_carga":80,"tronco":85,"cuello":70,"rodillas":88,"postura_general":75}}'+SKELETON_INSTRUCTION,
+  mecanica:'Eres ergonomista certificado. Analiza imagen de trabajador en MECANICA. Usa medidas en PULGADAS (inches) y LIBRAS (lbs). Evalua: postura de acceso, agarre de herramientas, muneca, tronco, cuclillas, brazos sobre cabeza, EPP, vibraciones. Responde UNICAMENTE con JSON valido sin markdown:\n{"puntuacion":85,"nivel":"Riesgo Bajo","resumen":"texto","hallazgos_criticos":["h1"],"hallazgos_moderados":["h1"],"puntos_positivos":["p1"],"recomendaciones":["r1"],"segmentos":{"acceso":75,"herramientas":80,"tronco":85,"brazos":70,"compresion":88,"postura_general":75}}'+SKELETON_INSTRUCTION
 };
+
+var COLOR_MAP={verde:'#3B6D11',amarillo:'#EF9F27',rojo:'#E24B4A'};
+
 function init(){document.getElementById('wdate').value=new Date().toISOString().split('T')[0];}
 function setArea(a,b){area=a;document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});b.classList.add('on');}
 function handleFile(f){if(!f)return;isVideo=f.type.indexOf('video')===0;var r=new FileReader();r.onload=function(e){dataUrl=e.target.result;showPreview();};r.readAsDataURL(f);}
+
 function showPreview(){
   document.getElementById('idle-section').style.display='none';
   document.getElementById('cam-section').style.display='none';
   document.getElementById('prev-section').style.display='block';
   var box=document.getElementById('prev-box'),tag=document.getElementById('media-tag');
   var old=box.querySelector('img,video');if(old)old.remove();
-  if(isVideo){var v=document.createElement('video');v.src=dataUrl;v.controls=true;v.style.cssText='width:100%;max-height:260px;object-fit:contain';box.insertBefore(v,box.firstChild);tag.textContent='video';document.getElementById('btn-frame').style.display='inline-flex';}
-  else{var img=document.createElement('img');img.src=dataUrl;img.style.cssText='width:100%;max-height:260px;object-fit:contain';box.insertBefore(img,box.firstChild);tag.textContent='foto';document.getElementById('btn-frame').style.display='none';}
+  document.getElementById('skeleton-svg').style.display='none';
+  document.getElementById('legend').style.display='none';
+  if(isVideo){
+    var v=document.createElement('video');v.src=dataUrl;v.controls=true;v.style.cssText='width:100%;max-height:380px;object-fit:contain';
+    box.insertBefore(v,box.firstChild);tag.textContent='video';
+    document.getElementById('btn-frame').style.display='inline-flex';
+  } else {
+    var img=document.createElement('img');img.src=dataUrl;img.style.cssText='width:100%;max-height:380px;object-fit:contain';
+    box.insertBefore(img,box.firstChild);tag.textContent='foto';
+    document.getElementById('btn-frame').style.display='none';
+  }
   document.getElementById('btn-analyze').disabled=false;
 }
+
 function captureFrame(){var v=document.querySelector('#prev-box video');if(!v)return;var c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);snaps.push({d:c.toDataURL('image/jpeg',.85),ts:Math.round(v.currentTime)});renderSnaps();}
 function renderSnaps(){if(!snaps.length)return;document.getElementById('snaps-wrap').style.display='block';document.getElementById('snap-list').innerHTML=snaps.map(function(s,i){return '<img class="snap" src="'+s.d+'" onclick="selectSnap('+i+')"/>';}).join('');}
-function selectSnap(i){dataUrl=snaps[i].d;isVideo=false;var box=document.getElementById('prev-box'),tag=document.getElementById('media-tag');var old=box.querySelector('img,video');if(old)old.remove();var img=document.createElement('img');img.src=dataUrl;img.style.cssText='width:100%;max-height:260px;object-fit:contain';box.insertBefore(img,box.firstChild);tag.textContent='frame';document.getElementById('btn-analyze').disabled=false;}
-function resetMedia(){dataUrl=null;isVideo=false;snaps=[];document.getElementById('idle-section').style.display='block';document.getElementById('prev-section').style.display='none';document.getElementById('snaps-wrap').style.display='none';document.getElementById('file-in').value='';document.getElementById('res-idle').style.display='block';document.getElementById('res-loading').style.display='none';document.getElementById('res-content').style.display='none';}
+function selectSnap(i){dataUrl=snaps[i].d;isVideo=false;showPreview();}
+
+function resetMedia(){
+  dataUrl=null;isVideo=false;snaps=[];lastResult=null;
+  document.getElementById('idle-section').style.display='block';
+  document.getElementById('prev-section').style.display='none';
+  document.getElementById('snaps-wrap').style.display='none';
+  document.getElementById('file-in').value='';
+  document.getElementById('res-idle').style.display='block';
+  document.getElementById('res-loading').style.display='none';
+  document.getElementById('res-content').style.display='none';
+}
+
 function openCam(){navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(s){camStream=s;document.getElementById('cam-vid').srcObject=s;document.getElementById('idle-section').style.display='none';document.getElementById('cam-section').style.display='block';}).catch(function(){alert('No se pudo acceder a la camara');});}
 function takePic(){var v=document.getElementById('cam-vid'),c=document.getElementById('cam-canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);dataUrl=c.toDataURL('image/jpeg',.92);isVideo=false;stopCam();showPreview();}
 function stopCam(){if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;}document.getElementById('cam-section').style.display='none';document.getElementById('idle-section').style.display='block';}
+
+function drawSkeleton(esq){
+  if(!esq)return;
+  var svg=document.getElementById('skeleton-svg');
+  var img=document.querySelector('#prev-box img');
+  if(!img)return;
+  svg.setAttribute('viewBox','0 0 100 100');
+  svg.setAttribute('preserveAspectRatio','none');
+  svg.style.width=img.offsetWidth+'px';
+  svg.style.height=img.offsetHeight+'px';
+  svg.style.left=img.offsetLeft+'px';
+  svg.style.top=img.offsetTop+'px';
+
+  var connections=[['cabeza','cuello'],['cuello','hombro_izq'],['cuello','hombro_der'],['hombro_izq','codo_izq'],['codo_izq','muneca_izq'],['hombro_der','codo_der'],['codo_der','muneca_der'],['cuello','cadera_izq'],['cuello','cadera_der'],['cadera_izq','cadera_der'],['cadera_izq','rodilla_izq'],['rodilla_izq','tobillo_izq'],['cadera_der','rodilla_der'],['rodilla_der','tobillo_der']];
+
+  var lines='';
+  connections.forEach(function(c){
+    var a=esq[c[0]],b=esq[c[1]];
+    if(a&&b){
+      var color=worstColor(a.color,b.color);
+      lines+='<line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'" stroke="'+COLOR_MAP[color]+'" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>';
+    }
+  });
+
+  var dots='';
+  Object.keys(esq).forEach(function(k){
+    var p=esq[k];
+    if(p&&typeof p.x==='number'){
+      dots+='<circle cx="'+p.x+'" cy="'+p.y+'" r="1.2" fill="'+COLOR_MAP[p.color||'verde']+'" stroke="white" stroke-width="0.3"/>';
+    }
+  });
+
+  svg.innerHTML=lines+dots;
+  svg.style.display='block';
+  document.getElementById('legend').style.display='flex';
+}
+
+function worstColor(a,b){
+  if(a==='rojo'||b==='rojo')return 'rojo';
+  if(a==='amarillo'||b==='amarillo')return 'amarillo';
+  return 'verde';
+}
+
 function analyze(){
   if(!dataUrl){alert('Sube imagen primero');return;}
   var btn=document.getElementById('btn-analyze');btn.disabled=true;btn.textContent='Analizando...';
@@ -197,7 +282,7 @@ function analyze(){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({
       model:'claude-sonnet-4-5',
-      max_tokens:1000,
+      max_tokens:1500,
       messages:[{role:'user',content:[
         {type:'image',source:{type:'base64',media_type:mime,data:base64}},
         {type:'text',text:PROMPTS[area]}
@@ -206,19 +291,24 @@ function analyze(){
   }).then(function(r){return r.json();}).then(function(data){
     var text=(data.content||[]).map(function(b){return b.text||'';}).join('');
     var r;try{r=JSON.parse(text.replace(/```json|```/g,'').trim());}catch(e){r={puntuacion:0,nivel:'Error',resumen:'No se pudo procesar.',hallazgos_criticos:[],hallazgos_moderados:[],puntos_positivos:[],recomendaciones:['Intenta otra imagen mas clara.'],segmentos:{}};}
-    renderResult(r);addHist(r);
+    lastResult=r;
+    renderResult(r);
+    if(r.esqueleto)setTimeout(function(){drawSkeleton(r.esqueleto);},100);
+    addHist(r);
     btn.disabled=false;btn.textContent='Analizar con IA';
   }).catch(function(){
     document.getElementById('res-loading').style.display='none';
     document.getElementById('res-content').style.display='block';
-    document.getElementById('res-content').innerHTML='<div class="empty" style="color:#A32D2D">Error de conexion. Verifica que la API Key este configurada en Vercel.</div>';
+    document.getElementById('res-content').innerHTML='<div class="empty" style="color:#A32D2D">Error de conexion.</div>';
     btn.disabled=false;btn.textContent='Analizar con IA';
   });
 }
+
 function sc(s){return s>=75?'#3B6D11':s>=50?'#854F0B':'#A32D2D';}
 function bc(s){return s>=75?'#639922':s>=50?'#EF9F27':'#E24B4A';}
 function lc(n){if(!n)return'ok';var l=n.toLowerCase();if(l.indexOf('bajo')>=0||l.indexOf('acepta')>=0)return'ok';if(l.indexOf('moder')>=0)return'warn';return'bad';}
 function ml(arr,c){if(!arr||!arr.length)return '<li class="fi"><span class="dot" style="background:#ccc"></span><span style="color:#aaa">Ninguno</span></li>';return arr.map(function(t){return '<li class="fi"><span class="dot" style="background:'+c+'"></span><span>'+t+'</span></li>';}).join('');}
+
 function renderResult(r){
   var segs=r.segmentos||{};
   var sh=Object.keys(segs).map(function(k){var v=segs[k];return '<div class="seg"><div class="seg-lbl">'+k.replace(/_/g,' ')+'</div><div class="seg-row"><span class="seg-val" style="color:'+sc(v)+'">'+v+'%</span><div class="bar-track"><div class="bar-fill" style="width:'+v+'%;background:'+bc(v)+'"></div></div></div></div>';}).join('');
@@ -228,11 +318,175 @@ function renderResult(r){
   html+='<div class="findings"><h4 style="color:#854F0B">A mejorar</h4><ul class="fi-list">'+ml(r.hallazgos_moderados,'#EF9F27')+'</ul></div>';
   html+='<div class="findings"><h4 style="color:#3B6D11">Aspectos positivos</h4><ul class="fi-list">'+ml(r.puntos_positivos,'#639922')+'</ul></div>';
   html+='<div class="findings"><h4 style="color:#185FA5">Recomendaciones</h4><ul class="fi-list">'+ml(r.recomendaciones,'#378ADD')+'</ul></div>';
+  html+='<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn btn-green" onclick="exportPDF()">📄 Descargar PDF</button></div>';
   document.getElementById('res-loading').style.display='none';
   document.getElementById('res-content').style.display='block';
   document.getElementById('res-content').innerHTML=html;
 }
+
 function addHist(r){hist.unshift({thumb:dataUrl,name:document.getElementById('wname').value||'Trabajador',role:document.getElementById('wrole').value||area,score:r.puntuacion,nivel:r.nivel,ts:new Date().toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})});document.getElementById('hist-card').style.display='block';document.getElementById('hist-list').innerHTML=hist.slice(0,8).map(function(e){return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #eee"><img src="'+e.thumb+'" style="width:44px;height:36px;object-fit:cover;border-radius:6px"/><div style="flex:1"><div style="font-size:13px;font-weight:600">'+e.name+'</div><div style="font-size:11px;color:#999">'+e.role+' - '+e.ts+'</div></div><div style="font-size:18px;font-weight:700;color:'+sc(e.score)+'">'+e.score+'%</div></div>';}).join('');}
+
+function getSkeletonImage(callback){
+  var img=document.querySelector('#prev-box img');
+  if(!img||!lastResult||!lastResult.esqueleto){callback(dataUrl);return;}
+  var c=document.createElement('canvas');
+  var iw=img.naturalWidth,ih=img.naturalHeight;
+  c.width=iw;c.height=ih;
+  var ctx=c.getContext('2d');
+  ctx.drawImage(img,0,0,iw,ih);
+  var esq=lastResult.esqueleto;
+  var connections=[['cabeza','cuello'],['cuello','hombro_izq'],['cuello','hombro_der'],['hombro_izq','codo_izq'],['codo_izq','muneca_izq'],['hombro_der','codo_der'],['codo_der','muneca_der'],['cuello','cadera_izq'],['cuello','cadera_der'],['cadera_izq','cadera_der'],['cadera_izq','rodilla_izq'],['rodilla_izq','tobillo_izq'],['cadera_der','rodilla_der'],['rodilla_der','tobillo_der']];
+  ctx.lineWidth=Math.max(3,iw/200);
+  ctx.lineCap='round';
+  connections.forEach(function(co){
+    var a=esq[co[0]],b=esq[co[1]];
+    if(a&&b){
+      var color=worstColor(a.color,b.color);
+      ctx.strokeStyle=COLOR_MAP[color];
+      ctx.globalAlpha=0.85;
+      ctx.beginPath();
+      ctx.moveTo(a.x*iw/100,a.y*ih/100);
+      ctx.lineTo(b.x*iw/100,b.y*ih/100);
+      ctx.stroke();
+    }
+  });
+  ctx.globalAlpha=1;
+  Object.keys(esq).forEach(function(k){
+    var p=esq[k];
+    if(p&&typeof p.x==='number'){
+      ctx.fillStyle=COLOR_MAP[p.color||'verde'];
+      ctx.strokeStyle='white';
+      ctx.lineWidth=Math.max(1,iw/400);
+      ctx.beginPath();
+      ctx.arc(p.x*iw/100,p.y*ih/100,Math.max(4,iw/150),0,Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  });
+  callback(c.toDataURL('image/jpeg',0.9));
+}
+
+function exportPDF(){
+  if(!lastResult){alert('Primero analiza una imagen');return;}
+  getSkeletonImage(function(imgData){
+    var jsPDF=window.jspdf.jsPDF;
+    var doc=new jsPDF();
+    var pw=doc.internal.pageSize.getWidth();
+    var ph=doc.internal.pageSize.getHeight();
+    var name=document.getElementById('wname').value||'Sin nombre';
+    var role=document.getElementById('wrole').value||'-';
+    var ev=document.getElementById('weval').value||'-';
+    var date=document.getElementById('wdate').value||'-';
+    var r=lastResult;
+    doc.setFillColor(24,95,165);
+    doc.rect(0,0,pw,28,'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica','bold');
+    doc.text('INFORME DE EVALUACION ERGONOMICA',pw/2,13,{align:'center'});
+    doc.setFontSize(10);
+    doc.setFont('helvetica','normal');
+    doc.text('Analisis postural con Inteligencia Artificial',pw/2,21,{align:'center'});
+    doc.setTextColor(40,40,40);
+    var y=38;
+    doc.setFontSize(11);
+    doc.setFont('helvetica','bold');
+    doc.text('Datos del trabajador',14,y);
+    y+=2;
+    doc.setDrawColor(220,220,220);
+    doc.line(14,y,pw-14,y);
+    y+=6;
+    doc.setFontSize(9);
+    doc.setFont('helvetica','normal');
+    doc.text('Nombre: '+name,14,y);
+    doc.text('Puesto: '+role,pw/2,y);
+    y+=5;
+    doc.text('Evaluador: '+ev,14,y);
+    doc.text('Fecha: '+date,pw/2,y);
+    y+=5;
+    doc.text('Area: '+area.charAt(0).toUpperCase()+area.slice(1),14,y);
+    y+=8;
+    var imgW=pw-28,imgH=70;
+    try{doc.addImage(imgData,'JPEG',14,y,imgW,imgH);}catch(e){}
+    y+=imgH+3;
+    doc.setFontSize(8);
+    doc.setTextColor(100,100,100);
+    doc.text('Verde: postura correcta  |  Amarillo: a mejorar  |  Rojo: critico',pw/2,y,{align:'center'});
+    y+=8;
+    doc.setFillColor(245,245,242);
+    doc.rect(14,y,pw-28,18,'F');
+    doc.setTextColor(40,40,40);
+    doc.setFontSize(24);
+    doc.setFont('helvetica','bold');
+    doc.text(r.puntuacion+'%',20,y+13);
+    doc.setFontSize(11);
+    doc.text(r.nivel||'',55,y+8);
+    doc.setFontSize(8);
+    doc.setFont('helvetica','normal');
+    doc.text(doc.splitTextToSize(r.resumen||'',pw-75),55,y+13);
+    y+=24;
+    if(r.segmentos&&Object.keys(r.segmentos).length){
+      doc.setFontSize(10);
+      doc.setFont('helvetica','bold');
+      doc.setTextColor(40,40,40);
+      doc.text('Evaluacion por segmento corporal',14,y);
+      y+=6;
+      doc.setFontSize(8);
+      doc.setFont('helvetica','normal');
+      Object.keys(r.segmentos).forEach(function(k){
+        var v=r.segmentos[k];
+        var lab=k.replace(/_/g,' ');
+        doc.text(lab,14,y);
+        var col=v>=75?[59,109,17]:v>=50?[133,79,11]:[163,45,45];
+        doc.setFillColor(230,230,230);
+        doc.rect(60,y-3,80,3,'F');
+        doc.setFillColor(col[0],col[1],col[2]);
+        doc.rect(60,y-3,80*v/100,3,'F');
+        doc.setTextColor(col[0],col[1],col[2]);
+        doc.text(v+'%',145,y);
+        doc.setTextColor(40,40,40);
+        y+=5;
+      });
+      y+=3;
+    }
+    if(y>240){doc.addPage();y=20;}
+    if(r.hallazgos_criticos&&r.hallazgos_criticos.length){
+      doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(163,45,45);
+      doc.text('Hallazgos criticos',14,y);y+=5;
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+      r.hallazgos_criticos.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});
+      y+=2;
+    }
+    if(y>240){doc.addPage();y=20;}
+    if(r.hallazgos_moderados&&r.hallazgos_moderados.length){
+      doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(133,79,11);
+      doc.text('A mejorar',14,y);y+=5;
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+      r.hallazgos_moderados.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});
+      y+=2;
+    }
+    if(y>240){doc.addPage();y=20;}
+    if(r.puntos_positivos&&r.puntos_positivos.length){
+      doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(59,109,17);
+      doc.text('Aspectos positivos',14,y);y+=5;
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+      r.puntos_positivos.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});
+      y+=2;
+    }
+    if(y>240){doc.addPage();y=20;}
+    if(r.recomendaciones&&r.recomendaciones.length){
+      doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(24,95,165);
+      doc.text('Recomendaciones',14,y);y+=5;
+      doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(40,40,40);
+      r.recomendaciones.forEach(function(h){var lines=doc.splitTextToSize('• '+h,pw-28);doc.text(lines,14,y);y+=lines.length*4+1;});
+    }
+    doc.setFontSize(7);doc.setTextColor(150,150,150);
+    doc.text('Generado por Sistema de Evaluacion Ergonomica con IA',pw/2,ph-10,{align:'center'});
+    doc.text(new Date().toLocaleString('es'),pw/2,ph-6,{align:'center'});
+    doc.save('ergonomia_'+name.replace(/\s/g,'_')+'_'+date+'.pdf');
+  });
+}
+
 init();
 </script>
 </body>
